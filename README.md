@@ -4,7 +4,10 @@
 <Window x:Class="OfflineChatApp.NamePrompt"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Name New Chat" Height="150" Width="300" WindowStartupLocation="CenterOwner">
+        Title="Name New Chat" Height="150" Width="300"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="ToolWindow">
     <StackPanel Margin="10">
         <TextBlock Text="Enter chat room name:" Margin="0,0,0,10"/>
         <TextBox x:Name="InputBox" Margin="0,0,0,10"/>
@@ -14,6 +17,8 @@
         </StackPanel>
     </StackPanel>
 </Window>
+
+
 
 
 
@@ -45,6 +50,7 @@ namespace OfflineChatApp
         }
     }
 }
+
 
 
 
