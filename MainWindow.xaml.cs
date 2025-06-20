@@ -57,7 +57,7 @@ namespace OfflineChatApp
                     string latestVersion = File.ReadAllText(versionCheckFile).Trim();
                     if (latestVersion != localVersion)
                     {
-                        MessageBox.Show($"A new version ({latestVersion}) is available. Please update.", "Update Available", MessageBoxButton.OK, MessageBoxImage.Information);
+                        // Notification removed at user request
                     }
                 }
             }
@@ -113,7 +113,7 @@ namespace OfflineChatApp
 
         private void AddChatRoom_Click(object sender, RoutedEventArgs e)
         {
-            var prompt = new NamePrompt(); // custom WPF window
+            var prompt = new NamePrompt();
             prompt.Owner = this;
 
             if (prompt.ShowDialog() == true && !string.IsNullOrWhiteSpace(prompt.Result))
@@ -157,31 +157,29 @@ namespace OfflineChatApp
             foreach (var line in lines)
             {
                 var paragraph = new Paragraph();
-                SolidColorBrush color;
+                paragraph.Margin = new Thickness(0, 0, 0, 5);
+                paragraph.Padding = new Thickness(5);
+                paragraph.TextAlignment = TextAlignment.Left;
 
                 string user = ExtractUsername(line);
                 string emoji = user != null ? GetEmojiForUser(user) : "";
                 string lineToDisplay = user != null ? line.Replace($"] {user}:", $"] {emoji} {user}:") : line;
 
-                if (line.Contains($"] {userName}:"))
-                    color = new SolidColorBrush(Color.FromRgb(173, 216, 230)); // Light blue
-                else
-                    color = new SolidColorBrush(Color.FromRgb(211, 211, 211)); // Light gray
-
+                SolidColorBrush color = line.Contains($"] {userName}:")
+                    ? new SolidColorBrush(Color.FromRgb(173, 216, 230))
+                    : new SolidColorBrush(Color.FromRgb(211, 211, 211));
                 paragraph.Background = color;
-                paragraph.Margin = new Thickness(0, 0, 0, 5);
-                paragraph.Padding = new Thickness(5);
 
-                var run = new Run(lineToDisplay);
-                run.MouseDown += (s, e) =>
+                var messageRun = new Run(lineToDisplay);
+                paragraph.Inlines.Add(messageRun);
+
+                if (user == userName)
                 {
-                    if (MessageBox.Show("Delete this message?", "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
-                    {
-                        DeleteMessage(line);
-                    }
-                };
+                    var deleteRun = new Run(" 🗑️") { FontSize = 14, Cursor = Cursors.Hand };
+                    deleteRun.MouseLeftButtonDown += (s, e) => DeleteMessage(line);
+                    paragraph.Inlines.Add(deleteRun);
+                }
 
-                paragraph.Inlines.Add(run);
                 ChatHistory.Document.Blocks.Add(paragraph);
             }
 
