@@ -14,3 +14,37 @@
         </StackPanel>
     </StackPanel>
 </Window>
+
+
+
+using System.Windows;
+
+namespace OfflineChatApp
+{
+    public partial class NamePrompt : Window
+    {
+        public string Result { get; private set; }
+
+        public NamePrompt()
+        {
+            InitializeComponent();
+            InputBox.Focus();
+        }
+
+        private void Ok_Click(object sender, RoutedEventArgs e)
+        {
+            Result = InputBox.Text;
+            DialogResult = true;
+            Close();
+        }
+
+        private void Cancel_Click(object sender, RoutedEventArgs e)
+        {
+            DialogResult = false;
+            Close();
+        }
+    }
+}
+
+
+
