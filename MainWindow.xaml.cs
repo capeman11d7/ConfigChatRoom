@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Documents;
 using System.Windows.Media;
+using Microsoft.VisualBasic;
 
 namespace OfflineChatApp
 {
@@ -27,12 +28,12 @@ namespace OfflineChatApp
         private readonly string[] emojiPool = new string[]
         {
             "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰",
-            "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🥸", "😏",
-            "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥱", "😤", "😠", "😡",
-            "🤬", "😶", "😐", "😑", "😯", "😦", "😧", "😮", "😲", "😵", "🤯", "😳", "🥵", "🥶", "😱",
-            "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😬", "🙄", "😯", "😴", "😪", "🐶",
-            "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🦄",
-            "🐔", "🐧", "🐦", "🐤", "🐣", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🐢", "🐍", "🦎"
+            "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🧐", "🤓", "😎", "🥸", "😏", "😒",
+            "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥱", "😤", "😠", "😡", "🤬",
+            "😶", "😐", "😑", "😯", "😦", "😧", "😮", "😲", "😵", "🤯", "😳", "🥵", "🥶", "😱", "😨",
+            "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😬", "🙄", "😯", "😴", "😪", "🐶", "🐱",
+            "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🦄", "🐔",
+            "🐧", "🐦", "🐤", "🐣", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🐢", "🐍", "🦎"
         };
 
         public MainWindow()
@@ -113,10 +114,16 @@ namespace OfflineChatApp
 
         private void AddChatRoom_Click(object sender, RoutedEventArgs e)
         {
-            var name = "ChatRoom_" + DateTime.Now.ToString("yyyyMMddHHmmss") + ".txt";
-            var path = Path.Combine(chatDirectory, name);
-            File.WriteAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm}] {userName} created the room.\n");
-            LoadChatRooms();
+            var input = Interaction.InputBox("Enter a name for the new chat room:", "Create Chat Room", "NewRoom");
+            if (!string.IsNullOrWhiteSpace(input))
+            {
+                string safeName = string.Join("_", input.Split(Path.GetInvalidFileNameChars()));
+                string fileName = safeName + ".txt";
+                string path = Path.Combine(chatDirectory, fileName);
+
+                File.WriteAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm}] {userName} created the room.\n");
+                LoadChatRooms();
+            }
         }
 
         private void SendMessage_Click(object sender, RoutedEventArgs e)
@@ -163,11 +170,29 @@ namespace OfflineChatApp
                 paragraph.Background = color;
                 paragraph.Margin = new Thickness(0, 0, 0, 5);
                 paragraph.Padding = new Thickness(5);
-                paragraph.Inlines.Add(new Run(lineToDisplay));
+
+                var run = new Run(lineToDisplay);
+                run.MouseDown += (s, e) =>
+                {
+                    if (MessageBox.Show("Delete this message?", "Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+                    {
+                        DeleteMessage(line);
+                    }
+                };
+
+                paragraph.Inlines.Add(run);
                 ChatHistory.Document.Blocks.Add(paragraph);
             }
 
             ChatHistory.ScrollToEnd();
+        }
+
+        private void DeleteMessage(string targetLine)
+        {
+            var lines = new List<string>(File.ReadAllLines(currentChatRoom));
+            lines.RemoveAll(l => l == targetLine);
+            File.WriteAllLines(currentChatRoom, lines);
+            LoadFormattedChat();
         }
 
         private string GetEmojiForUser(string name)
