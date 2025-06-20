@@ -21,6 +21,19 @@ namespace OfflineChatApp
         private string localVersion = "1.0.0";
         private DispatcherTimer chatRefreshTimer;
         private Dictionary<string, DateTime> lastSeenTimestamps = new Dictionary<string, DateTime>();
+        private Dictionary<string, string> userEmojis = new Dictionary<string, string>();
+        private Random rng = new Random();
+
+        private readonly string[] emojiPool = new string[]
+        {
+            "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰",
+            "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🥸", "😏",
+            "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥱", "😤", "😠", "😡",
+            "🤬", "😶", "😐", "😑", "😯", "😦", "😧", "😮", "😲", "😵", "🤯", "😳", "🥵", "🥶", "😱",
+            "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😬", "🙄", "😯", "😴", "😪", "🐶",
+            "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🦄",
+            "🐔", "🐧", "🐦", "🐤", "🐣", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🐢", "🐍", "🦎"
+        };
 
         public MainWindow()
         {
@@ -138,6 +151,10 @@ namespace OfflineChatApp
                 var paragraph = new Paragraph();
                 SolidColorBrush color;
 
+                string user = ExtractUsername(line);
+                string emoji = user != null ? GetEmojiForUser(user) : "";
+                string lineToDisplay = user != null ? line.Replace($"] {user}:", $"] {emoji} {user}:") : line;
+
                 if (line.Contains($"] {userName}:"))
                     color = new SolidColorBrush(Color.FromRgb(173, 216, 230)); // Light blue
                 else
@@ -146,12 +163,35 @@ namespace OfflineChatApp
                 paragraph.Background = color;
                 paragraph.Margin = new Thickness(0, 0, 0, 5);
                 paragraph.Padding = new Thickness(5);
-                paragraph.Inlines.Add(new Run(line));
-
+                paragraph.Inlines.Add(new Run(lineToDisplay));
                 ChatHistory.Document.Blocks.Add(paragraph);
             }
 
             ChatHistory.ScrollToEnd();
+        }
+
+        private string GetEmojiForUser(string name)
+        {
+            if (!userEmojis.ContainsKey(name))
+            {
+                userEmojis[name] = emojiPool[rng.Next(emojiPool.Length)];
+            }
+            return userEmojis[name];
+        }
+
+        private string ExtractUsername(string line)
+        {
+            try
+            {
+                int closingBracket = line.IndexOf("]");
+                int colonIndex = line.IndexOf(":", closingBracket + 2);
+                if (closingBracket != -1 && colonIndex != -1)
+                {
+                    return line.Substring(closingBracket + 2, colonIndex - closingBracket - 2);
+                }
+            }
+            catch { }
+            return null;
         }
 
         private void ChatRefreshTimer_Tick(object sender, EventArgs e)
