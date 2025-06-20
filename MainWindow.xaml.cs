@@ -9,7 +9,6 @@ using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Documents;
 using System.Windows.Media;
-using Microsoft.VisualBasic;
 
 namespace OfflineChatApp
 {
@@ -114,10 +113,12 @@ namespace OfflineChatApp
 
         private void AddChatRoom_Click(object sender, RoutedEventArgs e)
         {
-            var input = Interaction.InputBox("Enter a name for the new chat room:", "Create Chat Room", "NewRoom");
-            if (!string.IsNullOrWhiteSpace(input))
+            var prompt = new NamePrompt(); // custom WPF window
+            prompt.Owner = this;
+
+            if (prompt.ShowDialog() == true && !string.IsNullOrWhiteSpace(prompt.Result))
             {
-                string safeName = string.Join("_", input.Split(Path.GetInvalidFileNameChars()));
+                string safeName = string.Join("_", prompt.Result.Split(Path.GetInvalidFileNameChars()));
                 string fileName = safeName + ".txt";
                 string path = Path.Combine(chatDirectory, fileName);
 
