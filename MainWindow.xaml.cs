@@ -7,6 +7,8 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using System.Windows.Documents;
+using System.Windows.Media;
 
 namespace OfflineChatApp
 {
@@ -56,7 +58,9 @@ namespace OfflineChatApp
 
         private void RefreshChatRoomList()
         {
+            bool hasUnread = false;
             ChatRoomList.Items.Clear();
+
             foreach (var file in Directory.GetFiles(chatDirectory, "*.txt"))
             {
                 string name = Path.GetFileName(file);
@@ -66,11 +70,17 @@ namespace OfflineChatApp
                 if (lastSeenTimestamps.TryGetValue(name, out DateTime lastSeen))
                 {
                     if (lastWrite > lastSeen)
+                    {
                         label = "❗ " + name;
+                        hasUnread = true;
+                    }
                 }
 
                 ChatRoomList.Items.Add(label);
             }
+
+            if (hasUnread)
+                FlashWindow(this);
         }
 
         private void ChatRoomList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -79,7 +89,7 @@ namespace OfflineChatApp
             {
                 string selected = ChatRoomList.SelectedItem.ToString().Replace("❗ ", "");
                 currentChatRoom = Path.Combine(chatDirectory, selected);
-                ChatHistory.Text = File.ReadAllText(currentChatRoom);
+                LoadFormattedChat();
 
                 if (File.Exists(currentChatRoom))
                     lastSeenTimestamps[selected] = File.GetLastWriteTime(currentChatRoom);
@@ -106,7 +116,7 @@ namespace OfflineChatApp
             if (string.IsNullOrWhiteSpace(currentChatRoom)) return;
             var message = $"[{DateTime.Now:yyyy-MM-dd HH:mm}] {userName}: {MessageBox.Text}\n";
             File.AppendAllText(currentChatRoom, message);
-            ChatHistory.Text = File.ReadAllText(currentChatRoom);
+            LoadFormattedChat();
             MessageBox.Clear();
 
             string name = Path.GetFileName(currentChatRoom);
@@ -115,11 +125,40 @@ namespace OfflineChatApp
             FlashWindow(this);
         }
 
+        private void LoadFormattedChat()
+        {
+            ChatHistory.Document.Blocks.Clear();
+
+            if (string.IsNullOrWhiteSpace(currentChatRoom) || !File.Exists(currentChatRoom))
+                return;
+
+            var lines = File.ReadAllLines(currentChatRoom);
+            foreach (var line in lines)
+            {
+                var paragraph = new Paragraph();
+                SolidColorBrush color;
+
+                if (line.Contains($"] {userName}:"))
+                    color = new SolidColorBrush(Color.FromRgb(173, 216, 230)); // Light blue
+                else
+                    color = new SolidColorBrush(Color.FromRgb(211, 211, 211)); // Light gray
+
+                paragraph.Background = color;
+                paragraph.Margin = new Thickness(0, 0, 0, 5);
+                paragraph.Padding = new Thickness(5);
+                paragraph.Inlines.Add(new Run(line));
+
+                ChatHistory.Document.Blocks.Add(paragraph);
+            }
+
+            ChatHistory.ScrollToEnd();
+        }
+
         private void ChatRefreshTimer_Tick(object sender, EventArgs e)
         {
             if (!string.IsNullOrEmpty(currentChatRoom) && File.Exists(currentChatRoom))
             {
-                ChatHistory.Text = File.ReadAllText(currentChatRoom);
+                LoadFormattedChat();
             }
             RefreshChatRoomList();
         }
