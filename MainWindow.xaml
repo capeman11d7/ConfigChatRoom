@@ -33,7 +33,6 @@
 
         <!-- Chat Area -->
         <DockPanel Grid.Column="1" Margin="10">
-            <!-- Chat History -->
             <RichTextBox x:Name="ChatHistory"
                          IsReadOnly="True"
                          FontSize="16"
@@ -42,7 +41,6 @@
                          Height="450"
                          Margin="0,0,0,10"/>
 
-            <!-- Message Input Area -->
             <Grid DockPanel.Dock="Bottom">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
