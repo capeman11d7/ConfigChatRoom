@@ -10,16 +10,15 @@ using System.Windows.Interop;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Diagnostics;
 
 namespace OfflineChatApp
 {
     public partial class MainWindow : Window
     {
         private string chatDirectory = @"\\SharedDrive\ChatRooms";
-        private string versionCheckFile = @"\\SharedDrive\ChatRooms\latest_version.txt";
         private string currentChatRoom = "";
         private string userName = Environment.UserName;
-        private string localVersion = "1.0.0";
         private DispatcherTimer chatRefreshTimer;
         private Dictionary<string, DateTime> lastSeenTimestamps = new Dictionary<string, DateTime>();
         private Dictionary<string, string> userEmojis = new Dictionary<string, string>();
@@ -40,7 +39,6 @@ namespace OfflineChatApp
         {
             InitializeComponent();
             Title = "Chat About It";
-            CheckForLatestVersion();
             Directory.CreateDirectory(chatDirectory);
             LoadChatRooms();
 
@@ -48,22 +46,6 @@ namespace OfflineChatApp
             chatRefreshTimer.Interval = TimeSpan.FromSeconds(2);
             chatRefreshTimer.Tick += ChatRefreshTimer_Tick;
             chatRefreshTimer.Start();
-        }
-
-        private void CheckForLatestVersion()
-        {
-            try
-            {
-                if (File.Exists(versionCheckFile))
-                {
-                    string latestVersion = File.ReadAllText(versionCheckFile).Trim();
-                    if (latestVersion != localVersion)
-                    {
-                        // Version check handled silently
-                    }
-                }
-            }
-            catch { }
         }
 
         private void LoadChatRooms()
@@ -155,12 +137,12 @@ namespace OfflineChatApp
             var openFileDialog = new Microsoft.Win32.OpenFileDialog();
             if (openFileDialog.ShowDialog() == true)
             {
-                string fileName = System.IO.Path.GetFileName(openFileDialog.FileName);
-                string chatRoomDir = System.IO.Path.GetDirectoryName(currentChatRoom);
-                string filesDir = System.IO.Path.Combine(chatRoomDir, "files");
+                string fileName = Path.GetFileName(openFileDialog.FileName);
+                string chatRoomDir = Path.GetDirectoryName(currentChatRoom);
+                string filesDir = Path.Combine(chatRoomDir, "files");
                 Directory.CreateDirectory(filesDir);
 
-                string destinationPath = System.IO.Path.Combine(filesDir, fileName);
+                string destinationPath = Path.Combine(filesDir, fileName);
                 File.Copy(openFileDialog.FileName, destinationPath, overwrite: true);
 
                 string logLine = $"*{fileName}";
@@ -180,6 +162,8 @@ namespace OfflineChatApp
             string chatRoomDir = Path.GetDirectoryName(currentChatRoom);
             string filesDir = Path.Combine(chatRoomDir, "files");
 
+            string lastUser = null;
+
             foreach (var line in lines)
             {
                 var paragraph = new Paragraph();
@@ -191,6 +175,11 @@ namespace OfflineChatApp
                 {
                     string filename = line.TrimStart('*');
                     string fullPath = Path.Combine(filesDir, filename);
+
+                    // Try to use last sender
+                    string senderText = lastUser != null ? $"{GetEmojiForUser(lastUser)} {lastUser} sent:" : "File:";
+                    paragraph.Inlines.Add(new Run(senderText + "\n") { FontWeight = FontWeights.Bold });
+
                     if (File.Exists(fullPath))
                     {
                         if (IsImageFile(filename))
@@ -198,14 +187,14 @@ namespace OfflineChatApp
                             try
                             {
                                 var bitmap = new BitmapImage(new Uri(fullPath));
-                                var image = new Image { Source = bitmap, MaxHeight = 150, Margin = new Thickness(0, 5, 0, 5) };
+                                var image = new Image { Source = bitmap, MaxHeight = 450, Margin = new Thickness(0, 5, 0, 5) };
                                 image.MouseLeftButtonDown += (s, e) =>
                                 {
                                     var popup = new Window
                                     {
                                         Title = filename,
-                                        Width = 600,
-                                        Height = 600,
+                                        Width = 800,
+                                        Height = 800,
                                         Content = new Image
                                         {
                                             Source = new BitmapImage(new Uri(fullPath)),
@@ -215,18 +204,7 @@ namespace OfflineChatApp
                                     popup.ShowDialog();
                                 };
 
-                                var downloadButton = new Button
-                                {
-                                    Content = "Download",
-                                    FontSize = 12,
-                                    Margin = new Thickness(5, 0, 0, 0),
-                                    Tag = fullPath
-                                };
-                                downloadButton.Click += (s, e) =>
-                                {
-                                    try { System.Diagnostics.Process.Start(fullPath); } catch { }
-                                };
-
+                                var downloadButton = CreateDownloadButton(fullPath);
                                 paragraph.Inlines.Add(new InlineUIContainer(image));
                                 paragraph.Inlines.Add(new InlineUIContainer(downloadButton));
                             }
@@ -238,18 +216,7 @@ namespace OfflineChatApp
                         else
                         {
                             var run = new Run(filename + " ");
-                            var button = new Button
-                            {
-                                Content = "Download",
-                                Tag = fullPath,
-                                FontSize = 12,
-                                Padding = new Thickness(5),
-                                Margin = new Thickness(5, 0, 0, 0)
-                            };
-                            button.Click += (s, e) =>
-                            {
-                                try { System.Diagnostics.Process.Start(fullPath); } catch { }
-                            };
+                            var button = CreateDownloadButton(fullPath);
                             paragraph.Inlines.Add(run);
                             paragraph.Inlines.Add(new InlineUIContainer(button));
                         }
@@ -264,6 +231,8 @@ namespace OfflineChatApp
                 }
 
                 string user = ExtractUsername(line);
+                if (user != null) lastUser = user;
+
                 string emoji = user != null ? GetEmojiForUser(user) : "";
                 string lineToDisplay = user != null ? line.Replace($"] {user}:", $"] {emoji} {user}:") : line;
 
@@ -288,6 +257,30 @@ namespace OfflineChatApp
             ChatHistory.ScrollToEnd();
         }
 
+        private Button CreateDownloadButton(string fullPath)
+        {
+            var button = new Button
+            {
+                Content = "Download",
+                FontSize = 12,
+                Margin = new Thickness(5, 0, 0, 0)
+            };
+            button.Click += (s, e) =>
+            {
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo
+                    {
+                        FileName = fullPath,
+                        UseShellExecute = true
+                    };
+                    Process.Start(psi);
+                }
+                catch { }
+            };
+            return button;
+        }
+
         private bool IsImageFile(string fileName)
         {
             string ext = Path.GetExtension(fileName).ToLower();
@@ -305,9 +298,7 @@ namespace OfflineChatApp
         private string GetEmojiForUser(string name)
         {
             if (!userEmojis.ContainsKey(name))
-            {
                 userEmojis[name] = emojiPool[rng.Next(emojiPool.Length)];
-            }
             return userEmojis[name];
         }
 
