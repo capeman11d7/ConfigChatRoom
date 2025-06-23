@@ -11,7 +11,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Left Panel: Chat Rooms -->
+        <!-- Chat Room Panel -->
         <DockPanel Grid.Column="0" Background="#DDEEFF">
             <StackPanel Margin="10">
                 <TextBlock Text="Chat Rooms"
@@ -31,7 +31,7 @@
             </StackPanel>
         </DockPanel>
 
-        <!-- Right Panel: Chat Interface -->
+        <!-- Chat Area -->
         <DockPanel Grid.Column="1" Margin="10">
             <!-- Chat History -->
             <RichTextBox x:Name="ChatHistory"
@@ -42,24 +42,36 @@
                          Height="450"
                          Margin="0,0,0,10"/>
 
-            <!-- Message Input and Controls -->
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Bottom">
+            <!-- Message Input Area -->
+            <Grid DockPanel.Dock="Bottom">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
                 <TextBox x:Name="MessageBox"
                          FontSize="16"
-                         Width="500"
                          Height="30"
-                         KeyDown="MessageBox_KeyDown"/>
+                         Grid.Column="0"
+                         KeyDown="MessageBox_KeyDown"
+                         Margin="0,0,5,0"/>
+
                 <Button Content="Send"
                         FontSize="16"
                         Width="75"
-                        Margin="5,0,0,0"
+                        Height="30"
+                        Grid.Column="1"
+                        Margin="0,0,5,0"
                         Click="SendMessage_Click"/>
+
                 <Button Content="📎"
                         FontSize="16"
                         Width="40"
-                        Margin="5,0,0,0"
+                        Height="30"
+                        Grid.Column="2"
                         Click="UploadFile_Click"/>
-            </StackPanel>
+            </Grid>
         </DockPanel>
     </Grid>
 </Window>
