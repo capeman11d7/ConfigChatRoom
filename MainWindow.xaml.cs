@@ -10,15 +10,16 @@ using System.Windows.Interop;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Diagnostics;
 
 namespace OfflineChatApp
 {
     public partial class MainWindow : Window
     {
         private string chatDirectory = @"\\SharedDrive\ChatRooms";
+        private string versionCheckFile = @"\\SharedDrive\ChatRooms\latest_version.txt";
         private string currentChatRoom = "";
         private string userName = Environment.UserName;
+        private string localVersion = "1.0.0";
         private DispatcherTimer chatRefreshTimer;
         private Dictionary<string, DateTime> lastSeenTimestamps = new Dictionary<string, DateTime>();
         private Dictionary<string, string> userEmojis = new Dictionary<string, string>();
@@ -137,15 +138,15 @@ namespace OfflineChatApp
             var openFileDialog = new Microsoft.Win32.OpenFileDialog();
             if (openFileDialog.ShowDialog() == true)
             {
-                string fileName = Path.GetFileName(openFileDialog.FileName);
-                string chatRoomDir = Path.GetDirectoryName(currentChatRoom);
-                string filesDir = Path.Combine(chatRoomDir, "files");
+                string fileName = System.IO.Path.GetFileName(openFileDialog.FileName);
+                string chatRoomDir = System.IO.Path.GetDirectoryName(currentChatRoom);
+                string filesDir = System.IO.Path.Combine(chatRoomDir, "files");
                 Directory.CreateDirectory(filesDir);
 
-                string destinationPath = Path.Combine(filesDir, fileName);
+                string destinationPath = System.IO.Path.Combine(filesDir, fileName);
                 File.Copy(openFileDialog.FileName, destinationPath, overwrite: true);
 
-                string logLine = $"*{fileName}";
+                string logLine = $"*{fileName}|{userName}";
                 File.AppendAllText(currentChatRoom, logLine + "\n");
                 LoadFormattedChat();
             }
@@ -162,8 +163,6 @@ namespace OfflineChatApp
             string chatRoomDir = Path.GetDirectoryName(currentChatRoom);
             string filesDir = Path.Combine(chatRoomDir, "files");
 
-            string lastUser = null;
-
             foreach (var line in lines)
             {
                 var paragraph = new Paragraph();
@@ -173,51 +172,57 @@ namespace OfflineChatApp
 
                 if (line.StartsWith("*"))
                 {
-                    string filename = line.TrimStart('*');
+                    string[] parts = line.TrimStart('*').Split('|');
+                    string filename = parts[0];
+                    string sender = parts.Length > 1 ? parts[1] : "Unknown";
                     string fullPath = Path.Combine(filesDir, filename);
-
-                    // Try to use last sender
-                    string senderText = lastUser != null ? $"{GetEmojiForUser(lastUser)} {lastUser} sent:" : "File:";
-                    paragraph.Inlines.Add(new Run(senderText + "\n") { FontWeight = FontWeights.Bold });
 
                     if (File.Exists(fullPath))
                     {
+                        paragraph.Inlines.Add(new Bold(new Run($"{sender} sent:")) { FontSize = 14 });
+                        paragraph.Inlines.Add(new LineBreak());
+
                         if (IsImageFile(filename))
                         {
-                            try
+                            var bitmap = new BitmapImage(new Uri(fullPath));
+                            var image = new Image { Source = bitmap, MaxHeight = 450, Margin = new Thickness(0, 5, 0, 5) };
+                            image.MouseLeftButtonDown += (s, e) =>
                             {
-                                var bitmap = new BitmapImage(new Uri(fullPath));
-                                var image = new Image { Source = bitmap, MaxHeight = 450, Margin = new Thickness(0, 5, 0, 5) };
-                                image.MouseLeftButtonDown += (s, e) =>
+                                var popup = new Window
                                 {
-                                    var popup = new Window
+                                    Title = filename,
+                                    Width = 800,
+                                    Height = 800,
+                                    Content = new Image
                                     {
-                                        Title = filename,
-                                        Width = 800,
-                                        Height = 800,
-                                        Content = new Image
-                                        {
-                                            Source = new BitmapImage(new Uri(fullPath)),
-                                            Stretch = Stretch.Uniform
-                                        }
-                                    };
-                                    popup.ShowDialog();
+                                        Source = new BitmapImage(new Uri(fullPath)),
+                                        Stretch = Stretch.Uniform
+                                    }
                                 };
+                                popup.ShowDialog();
+                            };
 
-                                var downloadButton = CreateDownloadButton(fullPath);
-                                paragraph.Inlines.Add(new InlineUIContainer(image));
-                                paragraph.Inlines.Add(new InlineUIContainer(downloadButton));
-                            }
-                            catch
-                            {
-                                paragraph.Inlines.Add(new Run("[Image failed to load]"));
-                            }
+                            paragraph.Inlines.Add(new InlineUIContainer(image));
                         }
                         else
                         {
-                            var run = new Run(filename + " ");
-                            var button = CreateDownloadButton(fullPath);
-                            paragraph.Inlines.Add(run);
+                            var button = new Button
+                            {
+                                Content = "Open Location",
+                                Tag = fullPath,
+                                FontSize = 12,
+                                Padding = new Thickness(5),
+                                Margin = new Thickness(5, 5, 0, 0)
+                            };
+                            button.Click += (s, e) =>
+                            {
+                                try
+                                {
+                                    string argument = "/select,\"" + fullPath + "\"";
+                                    System.Diagnostics.Process.Start("explorer.exe", argument);
+                                }
+                                catch { }
+                            };
                             paragraph.Inlines.Add(new InlineUIContainer(button));
                         }
                     }
@@ -231,8 +236,6 @@ namespace OfflineChatApp
                 }
 
                 string user = ExtractUsername(line);
-                if (user != null) lastUser = user;
-
                 string emoji = user != null ? GetEmojiForUser(user) : "";
                 string lineToDisplay = user != null ? line.Replace($"] {user}:", $"] {emoji} {user}:") : line;
 
@@ -257,30 +260,6 @@ namespace OfflineChatApp
             ChatHistory.ScrollToEnd();
         }
 
-        private Button CreateDownloadButton(string fullPath)
-        {
-            var button = new Button
-            {
-                Content = "Download",
-                FontSize = 12,
-                Margin = new Thickness(5, 0, 0, 0)
-            };
-            button.Click += (s, e) =>
-            {
-                try
-                {
-                    ProcessStartInfo psi = new ProcessStartInfo
-                    {
-                        FileName = fullPath,
-                        UseShellExecute = true
-                    };
-                    Process.Start(psi);
-                }
-                catch { }
-            };
-            return button;
-        }
-
         private bool IsImageFile(string fileName)
         {
             string ext = Path.GetExtension(fileName).ToLower();
@@ -298,7 +277,9 @@ namespace OfflineChatApp
         private string GetEmojiForUser(string name)
         {
             if (!userEmojis.ContainsKey(name))
+            {
                 userEmojis[name] = emojiPool[rng.Next(emojiPool.Length)];
+            }
             return userEmojis[name];
         }
 
