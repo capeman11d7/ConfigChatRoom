@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace OfflineChatApp
 {
@@ -146,6 +147,27 @@ namespace OfflineChatApp
             FlashWindow(this);
         }
 
+        private void UploadFile_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(currentChatRoom)) return;
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog();
+            if (openFileDialog.ShowDialog() == true)
+            {
+                string fileName = System.IO.Path.GetFileName(openFileDialog.FileName);
+                string chatRoomDir = System.IO.Path.GetDirectoryName(currentChatRoom);
+                string filesDir = System.IO.Path.Combine(chatRoomDir, "files");
+                Directory.CreateDirectory(filesDir);
+
+                string destinationPath = System.IO.Path.Combine(filesDir, fileName);
+                File.Copy(openFileDialog.FileName, destinationPath, overwrite: true);
+
+                string logLine = $"*{fileName}";
+                File.AppendAllText(currentChatRoom, logLine + "\n");
+                LoadFormattedChat();
+            }
+        }
+
         private void LoadFormattedChat()
         {
             ChatHistory.Document.Blocks.Clear();
@@ -154,12 +176,62 @@ namespace OfflineChatApp
                 return;
 
             var lines = File.ReadAllLines(currentChatRoom);
+            string chatRoomDir = Path.GetDirectoryName(currentChatRoom);
+            string filesDir = Path.Combine(chatRoomDir, "files");
+
             foreach (var line in lines)
             {
                 var paragraph = new Paragraph();
                 paragraph.Margin = new Thickness(0, 0, 0, 5);
                 paragraph.Padding = new Thickness(5);
                 paragraph.TextAlignment = TextAlignment.Left;
+
+                if (line.StartsWith("*"))
+                {
+                    string filename = line.TrimStart('*');
+                    string fullPath = Path.Combine(filesDir, filename);
+                    if (File.Exists(fullPath))
+                    {
+                        if (IsImageFile(filename))
+                        {
+                            try
+                            {
+                                var bitmap = new BitmapImage(new Uri(fullPath));
+                                var image = new Image { Source = bitmap, MaxHeight = 150, Margin = new Thickness(0, 5, 0, 5) };
+                                paragraph.Inlines.Add(new InlineUIContainer(image));
+                            }
+                            catch
+                            {
+                                paragraph.Inlines.Add(new Run("[Image failed to load]"));
+                            }
+                        }
+                        else
+                        {
+                            var run = new Run(filename + " ");
+                            var button = new Button
+                            {
+                                Content = "Download",
+                                Tag = fullPath,
+                                FontSize = 12,
+                                Padding = new Thickness(5),
+                                Margin = new Thickness(5, 0, 0, 0)
+                            };
+                            button.Click += (s, e) =>
+                            {
+                                try { System.Diagnostics.Process.Start(fullPath); } catch { }
+                            };
+                            paragraph.Inlines.Add(run);
+                            paragraph.Inlines.Add(new InlineUIContainer(button));
+                        }
+                    }
+                    else
+                    {
+                        paragraph.Inlines.Add(new Run("[Missing file]"));
+                    }
+
+                    ChatHistory.Document.Blocks.Add(paragraph);
+                    continue;
+                }
 
                 string user = ExtractUsername(line);
                 string emoji = user != null ? GetEmojiForUser(user) : "";
@@ -184,6 +256,12 @@ namespace OfflineChatApp
             }
 
             ChatHistory.ScrollToEnd();
+        }
+
+        private bool IsImageFile(string fileName)
+        {
+            string ext = Path.GetExtension(fileName).ToLower();
+            return ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".gif" || ext == ".bmp" || ext == ".webp";
         }
 
         private void DeleteMessage(string targetLine)
